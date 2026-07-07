@@ -23,15 +23,17 @@ describe("extract90MinScore", () => {
   });
 
   it("uses regularTime for penalty shootouts and ignores penalty goals", () => {
+    // Real v4 shape (Germany–Paraguay R32 2026): 1-1 after 90, 0-0 in ET,
+    // 3-4 on pens — fullTime is cumulative (4-5).
     const score: ApiScore = {
-      winner: "HOME_TEAM",
+      winner: "AWAY_TEAM",
       duration: "PENALTY_SHOOTOUT",
-      fullTime: { home: 0, away: 0 },
-      regularTime: { home: 0, away: 0 },
+      fullTime: { home: 4, away: 5 },
+      regularTime: { home: 1, away: 1 },
       extraTime: { home: 0, away: 0 },
-      penalties: { home: 4, away: 2 },
+      penalties: { home: 3, away: 4 },
     };
-    expect(extract90MinScore(score)).toEqual({ home: 0, away: 0 });
+    expect(extract90MinScore(score)).toEqual({ home: 1, away: 1 });
   });
 
   it("derives fullTime − extraTime when regularTime is missing", () => {
@@ -43,6 +45,30 @@ describe("extract90MinScore", () => {
       extraTime: { home: 1, away: 0 },
     };
     expect(extract90MinScore(score)).toEqual({ home: 2, away: 2 });
+  });
+
+  it("also subtracts penalties when deriving a shootout score without regularTime", () => {
+    const score: ApiScore = {
+      winner: "AWAY_TEAM",
+      duration: "PENALTY_SHOOTOUT",
+      fullTime: { home: 4, away: 5 }, // 1-1 + 0-0 ET + 3-4 pens
+      regularTime: null,
+      extraTime: { home: 0, away: 0 },
+      penalties: { home: 3, away: 4 },
+    };
+    expect(extract90MinScore(score)).toEqual({ home: 1, away: 1 });
+  });
+
+  it("returns null for a shootout without regularTime or a penalties breakdown", () => {
+    const score: ApiScore = {
+      winner: "HOME_TEAM",
+      duration: "PENALTY_SHOOTOUT",
+      fullTime: { home: 4, away: 3 },
+      regularTime: null,
+      extraTime: { home: 0, away: 0 },
+      penalties: null,
+    };
+    expect(extract90MinScore(score)).toBeNull();
   });
 
   it("returns null when the 90-minute score cannot be determined", () => {

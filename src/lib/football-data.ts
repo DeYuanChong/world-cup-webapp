@@ -39,11 +39,13 @@ export interface ApiMatch {
  * The 90-minute (+injury time) score — the scoring basis for predictions.
  *
  * For matches decided in regular time, score.fullTime IS the 90-minute score.
- * For matches that went to extra time, score.fullTime is the 120-minute score
- * (penalties never count toward fullTime), so the 90-minute score must come
- * from score.regularTime, or be derived as fullTime − extraTime when
- * regularTime is absent. Returns null when it cannot be determined — callers
- * must then leave any existing stored score untouched.
+ * Beyond regular time, fullTime is cumulative — verified against real v4
+ * responses: fullTime = regularTime + extraTime + penalties (e.g. a match
+ * that was 1-1 after 90, 0-0 in extra time, and 4-3 on penalties has
+ * fullTime 5-4). So the 90-minute score is score.regularTime, or is derived
+ * by subtracting the later segments from fullTime when regularTime is
+ * absent. Returns null when it cannot be determined — callers must then
+ * leave any existing stored score untouched.
  */
 export function extract90MinScore(
   score: ApiScore,
@@ -59,10 +61,18 @@ export function extract90MinScore(
     return { home: score.regularTime.home, away: score.regularTime.away };
   }
   if (complete(score.fullTime) && complete(score.extraTime)) {
-    return {
-      home: score.fullTime.home - score.extraTime.home,
-      away: score.fullTime.away - score.extraTime.away,
-    };
+    const pens =
+      score.duration === "PENALTY_SHOOTOUT"
+        ? complete(score.penalties)
+          ? score.penalties
+          : null // shootout goals unknown — cannot derive
+        : { home: 0, away: 0 };
+    if (pens) {
+      return {
+        home: score.fullTime.home - score.extraTime.home - pens.home,
+        away: score.fullTime.away - score.extraTime.away - pens.away,
+      };
+    }
   }
   return null;
 }
