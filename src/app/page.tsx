@@ -8,7 +8,7 @@ const teamSelect = { select: { name: true, crest: true, tla: true } };
 export default async function FixturesPage() {
   const session = await requireSession();
 
-  const [matches, myPredictions] = await Promise.all([
+  const [matches, myPredictions, predictionCounts] = await Promise.all([
     prisma.match.findMany({
       orderBy: { kickoff: "asc" },
       select: {
@@ -28,6 +28,7 @@ export default async function FixturesPage() {
       where: { userId: session.user.id },
       select: { matchId: true, homeGoals: true, awayGoals: true },
     }),
+    prisma.prediction.groupBy({ by: ["matchId"], _count: { _all: true } }),
   ]);
 
   if (matches.length === 0) {
@@ -44,6 +45,9 @@ export default async function FixturesPage() {
   }
 
   const predByMatch = new Map(myPredictions.map((p) => [p.matchId, p]));
+  const countByMatch = new Map(
+    predictionCounts.map((c) => [c.matchId, c._count._all]),
+  );
   const live = matches.filter((m) => m.status === "IN_PLAY" || m.status === "PAUSED");
   const upcoming = matches.filter(
     (m) => m.status !== "FINISHED" && m.status !== "IN_PLAY" && m.status !== "PAUSED",
@@ -61,6 +65,7 @@ export default async function FixturesPage() {
               match={m as MatchCardMatch}
               prediction={predByMatch.get(m.id) ?? null}
               locked={isMatchLocked(m.kickoff)}
+              predictionCount={countByMatch.get(m.id) ?? 0}
             />
           ))}
         </div>

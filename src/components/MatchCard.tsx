@@ -24,10 +24,12 @@ export function MatchCard({
   match,
   prediction,
   locked,
+  predictionCount,
 }: {
   match: MatchCardMatch;
   prediction: { homeGoals: number; awayGoals: number } | null;
   locked: boolean;
+  predictionCount?: number;
 }) {
   const finished = match.status === "FINISHED";
   const live = match.status === "IN_PLAY" || match.status === "PAUSED";
@@ -60,7 +62,9 @@ export function MatchCard({
           href={`/matches/${match.id}`}
           className="ml-auto shrink-0 text-zinc-400 hover:text-zinc-600 hover:underline dark:hover:text-zinc-300"
         >
-          All predictions →
+          {predictionCount === undefined
+            ? "All predictions →"
+            : `${predictionCount} prediction${predictionCount === 1 ? "" : "s"} →`}
         </Link>
       </div>
 
