@@ -20,16 +20,38 @@ export interface MatchCardMatch {
   awayGoals90: number | null;
 }
 
+export interface PredictionWithUser {
+  homeGoals: number;
+  awayGoals: number;
+  user: { id: string; name: string | null; image: string | null };
+}
+
+function chipColor(points: 0 | 1 | 3 | null): string {
+  switch (points) {
+    case 3:
+      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200";
+    case 1:
+      return "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200";
+    case 0:
+      return "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500";
+    default:
+      return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";
+  }
+}
+
 export function MatchCard({
   match,
   prediction,
   locked,
-  predictionCount,
+  predictions,
+  currentUserId,
 }: {
   match: MatchCardMatch;
   prediction: { homeGoals: number; awayGoals: number } | null;
   locked: boolean;
-  predictionCount?: number;
+  /** Everyone's saved predictions, shown as chips on the card. */
+  predictions?: PredictionWithUser[];
+  currentUserId?: string;
 }) {
   const finished = match.status === "FINISHED";
   const live = match.status === "IN_PLAY" || match.status === "PAUSED";
@@ -62,9 +84,9 @@ export function MatchCard({
           href={`/matches/${match.id}`}
           className="ml-auto shrink-0 text-zinc-400 hover:text-zinc-600 hover:underline dark:hover:text-zinc-300"
         >
-          {predictionCount === undefined
+          {predictions === undefined
             ? "All predictions →"
-            : `${predictionCount} prediction${predictionCount === 1 ? "" : "s"} →`}
+            : `${predictions.length} prediction${predictions.length === 1 ? "" : "s"} →`}
         </Link>
       </div>
 
@@ -127,6 +149,39 @@ export function MatchCard({
           </div>
         )}
       </div>
+
+      {predictions !== undefined && predictions.length > 0 && (
+        <div className="mt-3 flex flex-wrap justify-center gap-1.5 border-t border-zinc-100 pt-2 dark:border-zinc-800">
+          {predictions.map((p) => {
+            const pts =
+              finished && hasResult
+                ? scorePrediction(
+                    { home: p.homeGoals, away: p.awayGoals },
+                    { home: match.homeGoals90!, away: match.awayGoals90! },
+                  )
+                : null;
+            const mine = p.user.id === currentUserId;
+            return (
+              <span
+                key={p.user.id}
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${chipColor(pts)} ${
+                  mine ? "ring-1 ring-emerald-500" : ""
+                }`}
+                title={`${p.user.name ?? "Anonymous"}: ${p.homeGoals}–${p.awayGoals}${pts !== null ? ` (+${pts})` : ""}`}
+              >
+                {p.user.image && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.user.image} alt="" className="h-3.5 w-3.5 rounded-full" />
+                )}
+                <span className="max-w-24 truncate">{p.user.name ?? "Anonymous"}</span>
+                <span className="font-mono font-medium tabular-nums">
+                  {p.homeGoals}–{p.awayGoals}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

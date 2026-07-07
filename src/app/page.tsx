@@ -8,7 +8,7 @@ const teamSelect = { select: { name: true, crest: true, tla: true } };
 export default async function FixturesPage() {
   const session = await requireSession();
 
-  const [matches, myPredictions, predictionCounts] = await Promise.all([
+  const [matches, allPredictions] = await Promise.all([
     prisma.match.findMany({
       orderBy: { kickoff: "asc" },
       select: {
@@ -25,10 +25,14 @@ export default async function FixturesPage() {
       },
     }),
     prisma.prediction.findMany({
-      where: { userId: session.user.id },
-      select: { matchId: true, homeGoals: true, awayGoals: true },
+      select: {
+        matchId: true,
+        homeGoals: true,
+        awayGoals: true,
+        user: { select: { id: true, name: true, image: true } },
+      },
+      orderBy: { user: { name: "asc" } },
     }),
-    prisma.prediction.groupBy({ by: ["matchId"], _count: { _all: true } }),
   ]);
 
   if (matches.length === 0) {
@@ -44,9 +48,19 @@ export default async function FixturesPage() {
     );
   }
 
-  const predByMatch = new Map(myPredictions.map((p) => [p.matchId, p]));
-  const countByMatch = new Map(
-    predictionCounts.map((c) => [c.matchId, c._count._all]),
+  const predsByMatch = new Map<number, typeof allPredictions>();
+  for (const p of allPredictions) {
+    // Own prediction first, then the rest in name order.
+    if (p.user.id === session.user.id) {
+      predsByMatch.set(p.matchId, [p, ...(predsByMatch.get(p.matchId) ?? [])]);
+    } else {
+      predsByMatch.set(p.matchId, [...(predsByMatch.get(p.matchId) ?? []), p]);
+    }
+  }
+  const myPredByMatch = new Map(
+    allPredictions
+      .filter((p) => p.user.id === session.user.id)
+      .map((p) => [p.matchId, p]),
   );
   const live = matches.filter((m) => m.status === "IN_PLAY" || m.status === "PAUSED");
   const upcoming = matches.filter(
@@ -63,9 +77,10 @@ export default async function FixturesPage() {
             <MatchCard
               key={m.id}
               match={m as MatchCardMatch}
-              prediction={predByMatch.get(m.id) ?? null}
+              prediction={myPredByMatch.get(m.id) ?? null}
               locked={isMatchLocked(m.kickoff)}
-              predictionCount={countByMatch.get(m.id) ?? 0}
+              predictions={predsByMatch.get(m.id) ?? []}
+              currentUserId={session.user.id}
             />
           ))}
         </div>

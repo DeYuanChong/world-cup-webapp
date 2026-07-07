@@ -46,6 +46,8 @@ export default async function MatchDetailPage({
           match={match as MatchCardMatch}
           prediction={myPrediction}
           locked={isMatchLocked(match.kickoff)}
+          predictions={match.predictions}
+          currentUserId={session.user.id}
         />
       </div>
 
