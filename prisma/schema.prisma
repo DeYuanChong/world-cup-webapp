@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Auth.js (standard adapter models) ----------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  predictions   Prediction[]
+  championPick  ChampionPick?
+  createdAt     DateTime  @default(now())
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ---------- World Cup domain ----------
+
+model Team {
+  id        Int     @id // football-data.org team id
+  name      String
+  shortName String?
+  tla       String? // three-letter code
+  crest     String? // crest image URL
+
+  homeMatches   Match[]        @relation("homeTeam")
+  awayMatches   Match[]        @relation("awayTeam")
+  wonMatches    Match[]        @relation("winnerTeam")
+  championPicks ChampionPick[]
+}
+
+model Match {
+  id       Int      @id // football-data.org match id
+  stage    String // GROUP_STAGE, LAST_32, LAST_16, QUARTER_FINALS, SEMI_FINALS, THIRD_PLACE, FINAL
+  group    String?
+  matchday Int?
+  kickoff  DateTime // utcDate from the API, stored UTC
+  status   String // SCHEDULED, TIMED, IN_PLAY, PAUSED, FINISHED, ...
+
+  homeTeamId Int? // nullable: knockout slots are TBD until decided
+  awayTeamId Int?
+  homeTeam   Team? @relation("homeTeam", fields: [homeTeamId], references: [id])
+  awayTeam   Team? @relation("awayTeam", fields: [awayTeamId], references: [id])
+
+  // The 90-minute (+injury time) score — the sole basis for prediction scoring.
+  // Never includes extra time or penalties (see AGENTS.md invariants).
+  homeGoals90 Int?
+  awayGoals90 Int?
+  duration    String? // REGULAR | EXTRA_TIME | PENALTY_SHOOTOUT
+
+  // Advancing winner incl. extra time/pens — used only for the champion pick.
+  winnerTeamId Int?
+  winnerTeam   Team? @relation("winnerTeam", fields: [winnerTeamId], references: [id])
+
+  manualOverride Boolean   @default(false) // admin-set scores; sync must not touch score fields
+  rawScore       Json? // full score object from the API, for auditing/recovery
+  lastSyncedAt   DateTime?
+
+  predictions Prediction[]
+
+  @@index([kickoff])
+  @@index([stage])
+}
+
+model Prediction {
+  id        String   @id @default(cuid())
+  userId    String
+  matchId   Int
+  homeGoals Int
+  awayGoals Int
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchId])
+}
+
+model ChampionPick {
+  userId    String   @id
+  teamId    Int
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team      Team     @relation(fields: [teamId], references: [id])
+}
