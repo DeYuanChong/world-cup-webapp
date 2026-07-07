@@ -11,18 +11,17 @@ export default async function AdminPage() {
   const session = await requireSession();
   if (!isAdmin(session.user.email)) notFound();
 
-  const matches = await prisma.match.findMany({
-    orderBy: { kickoff: "desc" },
-    include: {
-      homeTeam: { select: { id: true, name: true } },
-      awayTeam: { select: { id: true, name: true } },
-    },
-  });
-  const lastSyncedAt = matches.reduce<Date | null>(
-    (latest, m) =>
-      m.lastSyncedAt && (!latest || m.lastSyncedAt > latest) ? m.lastSyncedAt : latest,
-    null,
-  );
+  const [matches, syncState] = await Promise.all([
+    prisma.match.findMany({
+      orderBy: { kickoff: "desc" },
+      include: {
+        homeTeam: { select: { id: true, name: true } },
+        awayTeam: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.syncState.findUnique({ where: { id: 1 } }),
+  ]);
+  const lastSyncedAt = syncState?.lastSyncedAt ?? null;
 
   return (
     <div>

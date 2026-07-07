@@ -92,9 +92,8 @@ model Match {
   winnerTeamId Int?
   winnerTeam   Team? @relation("winnerTeam", fields: [winnerTeamId], references: [id])
 
-  manualOverride Boolean   @default(false) // admin-set scores; sync must not touch score fields
+  manualOverride Boolean @default(false) // admin-set scores; sync must not touch score fields
   rawScore       Json? // full score object from the API, for auditing/recovery
-  lastSyncedAt   DateTime?
 
   predictions Prediction[]
 
@@ -113,6 +112,12 @@ model Prediction {
   match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
 
   @@unique([userId, matchId])
+}
+
+// Single-row table recording the last successful score sync.
+model SyncState {
+  id           Int      @id @default(1)
+  lastSyncedAt DateTime
 }
 
 model ChampionPick {
